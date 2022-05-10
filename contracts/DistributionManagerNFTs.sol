@@ -122,58 +122,31 @@ contract DistributionManagerNFTs  {
   }
 
   /**
-   * @dev Used by "frontend" stake contracts to update the data of an nft when claiming rewards from there
+   * @dev Return the accrued rewards for an nft
    * @param nft The id of the nft
-   * @param stakes List of structs of the nft data
+   * @param stake Struct of the nft data
    * @return The accrued rewards for the nft until the moment
    **/
-  function _claimRewards(uint256 nft, NFTStakeInput[] memory stakes)
-    internal
-    returns (uint256)
-  {
-    uint256 accruedRewards = 0;
-
-    for (uint256 i = 0; i < stakes.length; i++) {
-      accruedRewards = accruedRewards + (
-        _updateNFTPoolInternal(
-          nft,
-          stakes[i].poolNumber,
-          stakes[i].NFTVaule,
-          stakes[i].totalValue
-        )
-      );
-    }
-
-    return accruedRewards;
-  }
-
-  /**
-   * @dev Return the accrued rewards for an nft over a list of distribution
-   * @param nft The id of the nft
-   * @param stakes List of structs of the nft data
-   * @return The accrued rewards for the nft until the moment
-   **/
-  function _getUnclaimedRewards(uint256 nft, NFTStakeInput[] memory stakes)
+  function _getUnclaimedRewards(uint256 nft, NFTStakeInput memory stake)
     internal
     view
     returns (uint256)
   {
     uint256 accruedRewards = 0;
 
-    for (uint256 i = 0; i < stakes.length; i++) {
-      PoolData storage poolConfig = pools[stakes[i].poolNumber];
-      uint256 poolIndex =
-        _getPoolIndex(
-          poolConfig.index,
-          poolConfig.emissionPerSecond,
-          poolConfig.lastUpdateTimestamp,
-          stakes[i].totalValue
-        );
-
-      accruedRewards = accruedRewards + (
-        _getRewards(stakes[i].NFTVaule, poolIndex, poolConfig.nfts[nft])
+    PoolData storage poolConfig = pools[stake.poolNumber];
+    uint256 poolIndex =
+      _getPoolIndex(
+        poolConfig.index,
+        poolConfig.emissionPerSecond,
+        poolConfig.lastUpdateTimestamp,
+        stake.totalValue
       );
-    }
+
+    accruedRewards = accruedRewards + (
+      _getRewards(stake.NFTVaule, poolIndex, poolConfig.nfts[nft])
+    );
+
     return accruedRewards;
   }
 

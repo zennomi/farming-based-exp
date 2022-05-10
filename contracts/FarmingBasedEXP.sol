@@ -31,7 +31,8 @@ contract FarmingBasedEXP is
     }
 
     mapping(uint256 => NFTInfo) public nftInfos;
-    mapping(address => uint256[]) public stakerNFTs;
+    // user => level => amount
+    mapping(address => mapping(uint256 => uint256)) public balances;
     mapping(uint128 => uint256) public totalValues;
 
     address receiveVault;
@@ -164,7 +165,6 @@ contract FarmingBasedEXP is
 
         for (uint256 i; i < _ids.length; i++) {
             uint256 id = _ids[i];
-
             nftContract.transferFrom(msg.sender, address(this), id);
 
             uint128 rarityOfToken = uint128(
@@ -177,7 +177,7 @@ contract FarmingBasedEXP is
 
             uint256 expOfToken = nftContract.getCollectionExperience(id);
             sumExp += expOfToken;
-
+            
             NFTInfo memory nftInfo = NFTInfo({
                 owner: msg.sender,
                 exp: expOfToken,
@@ -187,25 +187,71 @@ contract FarmingBasedEXP is
 
             nftInfos[id] = nftInfo;
 
-            stakerNFTs[msg.sender].push(id);
-
             _updateNFTPoolInternal(id, _level, 0, totalValue);
         }
 
+        balances[msg.sender][_level] += _ids.length;
         totalValues[_level] += sumExp;
 
         emit Stake(msg.sender, _ids, _level);
     }
 
-    function redeemAndClaim(uint256[] calldata _ids) external {}
+    function redeemAndClaim(uint256[] calldata _ids, uint128 _level) external {
+        require(msg.sender == tx.origin, "Not a wallet!");
+
+        uint256 totalReward;
+        uint256 totalValue = totalValues[_level];
+
+        for(uint256 i; i< _ids.length; i++){
+            uint256 id = _ids[i];
+            NFTInfo memory nftInfo = nftInfos[id];
+            delete nftInfos[id];
+ 
+            address owner = nftInfo.owner;
+            require(msg.sender == owner, "You do not own this NFT");
+
+            uint128 level = nftInfo.level;
+            require(level == _level, "Redeem the wrong vault");
+
+            uint256 exp = nftInfo.exp; 
+            totalReward += _updateNFTPoolInternal(id, level, exp, totalValue);
+            totalValue -= exp;
+
+            // Transfer back NFT
+            nftContract.transferFrom(address(this), msg.sender, id);
+        }
+
+        // Transfer reward token
+        rewardToken.safeTransferFrom(rewardsVault, msg.sender, totalReward);
+
+        balances[msg.sender][_level] -= _ids.length;
+
+        totalValues[_level] = totalValue;
+    }
 
     function getTotalRewardsBalance(uint256[] calldata _ids)
         external
         view
         returns (uint256)
-    {}
+    {   
+        uint256 totalReward;
+        for(uint256 i; i < _ids.length; i++){
+            uint256 id = _ids[i];
+            NFTInfo memory nftInfo = nftInfos[id];
+            uint128 level = nftInfo.level;
+            NFTStakeInput memory nftStakeInput = NFTStakeInput({
+                poolNumber: level,
+                NFTVaule: nftInfo.exp,
+                totalValue: totalValues[level]
+            });
 
-    function getStakingNFTinAllLevel(address _user)
+            totalReward += _getUnclaimedRewards(id, nftStakeInput);
+        }
+
+        return totalReward;
+    }
+
+    function getStakingNFTinALevel(address _user, uint128 _level)
         external
         view
         returns (uint256[] memory)
