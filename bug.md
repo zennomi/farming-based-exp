@@ -1,0 +1,1 @@
+- NFTVaule in NFTStakeInput

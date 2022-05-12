@@ -1,4 +1,9 @@
 {
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "script": "npx hardhat run scripts/sample.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.5",
     "@nomiclabs/hardhat-waffle": "^2.0.3",
