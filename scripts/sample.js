@@ -50,10 +50,10 @@ async function main() {
   await myContract.connect(user1).stake([1, 3], 1);
   await myContract.connect(user2).stake([2], 1);
 
-  await ethers.provider.send("evm_increaseTime", [5 * 24 * 3600]);
+  await ethers.provider.send("evm_increaseTime", [1 * 24 * 3600]);
   await ethers.provider.send("evm_mine");
   console.log(
-    "Next 5 days... Current timestamp is ",
+    "Next 1 days... Current timestamp is ",
     (await ethers.provider.getBlock(await ethers.provider.getBlockNumber()))
       .timestamp
   );
@@ -69,6 +69,7 @@ async function main() {
       await myContract.connect(user2.address).getTotalRewardsBalance([2])
     ).toString()
   );
+  console.log((await myContract.getEmissionPerSecond(6, 100, 10, 90, 3)).toString())
   console.log("Done");
 }
 

@@ -7,11 +7,13 @@ import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeab
 import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {NFT721Test} from "./NFT721Test.sol";
+import "./EmissionFormula.sol";
 
 contract FarmingBasedEXP is
     OwnableUpgradeable,
     DistributionManagerNFTs,
-    IERC721ReceiverUpgradeable
+    IERC721ReceiverUpgradeable,
+    EmissionFormula
 {
     using SafeERC20Upgradeable for IERC20Upgradeable;
 
@@ -34,6 +36,8 @@ contract FarmingBasedEXP is
     // user => level => amount
     mapping(address => mapping(uint256 => uint256)) public balances;
     mapping(uint128 => uint256) public totalValues;
+    // level => count
+    mapping(uint128 => uint256) public nftCounts;
 
     address receiveVault;
     address rewardsVault;
@@ -177,7 +181,6 @@ contract FarmingBasedEXP is
 
             uint256 expOfToken = nftContract.getCollectionExperience(id);
             sumExp += expOfToken;
-            
             NFTInfo memory nftInfo = NFTInfo({
                 owner: msg.sender,
                 exp: expOfToken,
@@ -190,6 +193,8 @@ contract FarmingBasedEXP is
             _updateNFTPoolInternal(id, _level, 0, totalValue);
         }
 
+        nftCounts[_level] += _ids.length;
+        updateEmissionPerSecond(_level);
         balances[msg.sender][_level] += _ids.length;
         totalValues[_level] += sumExp;
 
@@ -202,18 +207,18 @@ contract FarmingBasedEXP is
         uint256 totalReward;
         uint256 totalValue = totalValues[_level];
 
-        for(uint256 i; i< _ids.length; i++){
+        for (uint256 i; i < _ids.length; i++) {
             uint256 id = _ids[i];
             NFTInfo memory nftInfo = nftInfos[id];
             delete nftInfos[id];
- 
+
             address owner = nftInfo.owner;
             require(msg.sender == owner, "You do not own this NFT");
 
             uint128 level = nftInfo.level;
             require(level == _level, "Redeem the wrong vault");
 
-            uint256 exp = nftInfo.exp; 
+            uint256 exp = nftInfo.exp;
             totalReward += _updateNFTPoolInternal(id, level, exp, totalValue);
             totalValue -= exp;
 
@@ -225,6 +230,8 @@ contract FarmingBasedEXP is
         rewardToken.safeTransferFrom(rewardsVault, msg.sender, totalReward);
 
         balances[msg.sender][_level] -= _ids.length;
+        nftCounts[_level] -= _ids.length;
+        updateEmissionPerSecond(_level);
 
         totalValues[_level] = totalValue;
     }
@@ -233,9 +240,9 @@ contract FarmingBasedEXP is
         external
         view
         returns (uint256)
-    {   
+    {
         uint256 totalReward;
-        for(uint256 i; i < _ids.length; i++){
+        for (uint256 i; i < _ids.length; i++) {
             uint256 id = _ids[i];
             NFTInfo memory nftInfo = nftInfos[id];
             uint128 level = nftInfo.level;
@@ -273,5 +280,15 @@ contract FarmingBasedEXP is
     ) external override returns (bytes4) {
         // Equals to `bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"))`
         return 0x150b7a02;
+    }
+
+    function updateEmissionPerSecond(uint128 _level)
+        internal
+        returns (uint256)
+    {
+        uint256 nftCount = nftCounts[_level];
+        uint128 newValue = getEmissionPerSecond(6, 100, 10, 90, nftCount);
+        pools[_level].emissionPerSecond = newValue;
+        return newValue;
     }
 }
